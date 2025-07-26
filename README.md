@@ -31,9 +31,7 @@ Flat profile:
 Each sample counts as 0.001 seconds.
   %   cumulative   self              self     total           
  time   seconds   seconds    calls  Ts/call  Ts/call  name    
-  0.00      0.00     0.00       10     0.00     0.00  compute
-  0.00      0.00     0.00        1     0.00     0.00  compute2
-  0.00      0.00     0.00        1     0.00     0.00  compute3
+  0.00      0.00     0.00  4750132     0.00     0.00  compute
   0.00      0.00     0.00        1     0.00     0.00  main
 ```
 

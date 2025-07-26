@@ -29,6 +29,7 @@ add_executable(${PROJECT_NAME}
 target_link_libraries(${PROJECT_NAME}
   vitagprof
   SceLibKernel_stub
+  SceRtc_stub
 )
 
 vita_create_self(eboot.bin ${PROJECT_NAME}
