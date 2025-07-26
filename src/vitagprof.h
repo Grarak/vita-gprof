@@ -7,10 +7,11 @@
  * vitaprof.h - Prototypes for the profiler library
  *
  * Copyright (c) 2006 Urchin
+ * Copyright (c) 2025 William Bonnaventure
  *
  */
-#ifndef __VITAPROF_H__
-#define __VITAPROF_H__
+#ifndef __VITAGPROF_H__
+#define __VITAGPROF_H__
 
 #ifdef __cplusplus
 extern "C" {
@@ -40,4 +41,4 @@ void gprof_stop(const char* filename, int should_dump);
 }
 #endif
 
-#endif	/* __VITAPROF_H__ */
+#endif	/* __VITAGPROF_H__ */

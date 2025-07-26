@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <string.h>
 
-#include <vitaprof.h>
+#include <vitagprof.h>
 
 #include <psp2/kernel/clib.h> 
 #include <psp2/kernel/threadmgr.h>

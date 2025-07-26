@@ -7,7 +7,7 @@
  * prof.c - Main profiler code
  *
  * Copyright (c) 2005 urchin <c64psp@gmail.com>
- * Copyright (c) 2025 Aztorius <william.bonnaventure@gmail.com>
+ * Copyright (c) 2025 William Bonnaventure
  *
  */
 #include <stdlib.h>
@@ -15,7 +15,7 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "vitaprof.h"
+#include "vitagprof.h"
 
 #define	GMON_PROF_ON	0
 #define	GMON_PROF_BUSY	1
@@ -71,7 +71,8 @@ struct gmonparam
 static struct gmonparam gp;
 
 /// one histogram per two bytes of text space
-#define	HISTFRACTION	4
+/// (instructions can be on two bytes instead of four due to Thumb mode)
+#define	HISTFRACTION	2
 
 /// define sample frequency - 1000 hz = 1ms
 #define SAMPLE_FREQ     1000
@@ -109,7 +110,6 @@ static void initialize()
     gp.highpc = (unsigned int)&__etext;
     gp.textsize = gp.highpc - gp.lowpc;
     gp.hashfraction = HISTFRACTION;
-    sceClibPrintf("initialisation: lowpc %x highpc %x textsize %x hashfraction %x\n", gp.lowpc, gp.highpc, gp.textsize, gp.hashfraction);
 
     gp.narcs = (gp.textsize + gp.hashfraction - 1) / gp.hashfraction;
     gp.arcs = (struct rawarc *)malloc(sizeof(struct rawarc) * gp.narcs);
@@ -135,7 +135,7 @@ static void initialize()
     int thid = 0;
     thid = sceKernelCreateThread("profilerThread", profiler_thread, 0x10000100, 0x10000, 0, 0, NULL);
     if (thid < 0) {
-        sceClibPrintf("Profiler: sceKernelCreateThread failed with error code %i\n", thid);
+        sceClibPrintf("vitagprof: sceKernelCreateThread failed with error code %i\n", thid);
         free(gp.arcs);
         free(gp.samples);
         gp.arcs = 0;
@@ -161,7 +161,6 @@ void gprof_start(void) {
 __attribute__((__no_instrument_function__, __no_profile_instrument_function__))
 void gprof_stop(const char* filename, int should_dump)
 {
-    sceClibPrintf("gprof_stop called\n");
     FILE *fp;
     int i;
     struct gmonhdr hdr;
@@ -181,13 +180,12 @@ void gprof_stop(const char* filename, int should_dump)
     int ret = sceKernelWaitThreadEnd(gp.thread_id, &exitstatus, &timeout);
     if (ret < 0 || exitstatus != 0)
     {
-        sceClibPrintf("Error on profiler exit. Exit status %i, return code %i\n", exitstatus, ret);
+        sceClibPrintf("vitagprof: error on profiler exit. Exit status %i, return code %i\n", exitstatus, ret);
     }
 
     sceKernelDeleteThread(gp.thread_id);
 
     if (should_dump) {
-        sceClibPrintf("dump started\n");
         fp = fopen(filename, "wb");
         hdr.lpc = gp.lowpc;
         hdr.hpc = gp.highpc;
@@ -204,13 +202,12 @@ void gprof_stop(const char* filename, int should_dump)
         {
             if (gp.arcs[i].count > 0)
             {
-                sceClibPrintf("arc frompc %x selfpc %x count %d\n", gp.arcs[i].frompc, gp.arcs[i].selfpc, gp.arcs[i].count);
+                // sceClibPrintf("arc frompc %x selfpc %x count %d\n", gp.arcs[i].frompc, gp.arcs[i].selfpc, gp.arcs[i].count);
                 fwrite(gp.arcs + i, sizeof(struct rawarc), 1, fp);
             }
         }
 
         fclose(fp);
-        sceClibPrintf("dump ended\n");
     }
 
     // Free memory
@@ -225,6 +222,7 @@ void gprof_stop(const char* filename, int should_dump)
 __attribute__((__no_instrument_function__, __no_profile_instrument_function__))
 void __gprof_cleanup()
 {
+    // TODO : not called ?
     gprof_stop("ux0:/data/gmon.out", 1);
 }
 
@@ -240,7 +238,6 @@ void __gprof_cleanup()
 __attribute__((__no_instrument_function__, __no_profile_instrument_function__))
 void _mcount_internal(unsigned int frompc, unsigned int selfpc)
 { 
-    sceClibPrintf("mcount_internal frompc %x selfpc %x\n", frompc, selfpc);
     int e;
     struct rawarc *arc;
 
@@ -261,8 +258,9 @@ void _mcount_internal(unsigned int frompc, unsigned int selfpc)
         gp.pc = selfpc;
         e = (frompc - gp.lowpc) / gp.hashfraction;
         arc = gp.arcs + e;
-        arc->frompc = frompc;
-        arc->selfpc = selfpc;
+        // Don't ask me why but addresses are 0xB shifted from the elf adresses
+        arc->frompc = frompc - 0xB;
+        arc->selfpc = selfpc - 0xB;
         arc->count++;
     }
 }
@@ -272,8 +270,6 @@ void _mcount_internal(unsigned int frompc, unsigned int selfpc)
 __attribute__((__no_instrument_function__, __no_profile_instrument_function__))
 static int profiler_thread(SceSize args, void *argp)
 {
-    sceClibPrintf("profiler_thread started\n");
-
     while (gp.state == GMON_PROF_ON)
     {
         unsigned int frompc = gp.pc;
@@ -290,6 +286,5 @@ static int profiler_thread(SceSize args, void *argp)
         sceKernelDelayThread(1000 * 1000 / SAMPLE_FREQ);
     }
 
-    sceClibPrintf("profiler_thread ended\n");
     return 0;
 }
