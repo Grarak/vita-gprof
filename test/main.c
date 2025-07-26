@@ -29,7 +29,6 @@ int main(int argc, char *argv[])
 
     SceRtcTick start_tick, current_tick;
     sceRtcGetCurrentTick(&start_tick);
-    sceClibPrintf("start_tick %lu", start_tick.tick);
 
     do
     {
