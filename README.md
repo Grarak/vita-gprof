@@ -9,6 +9,13 @@ It is now time for optimizations !
 Note : use it at your own risk
 
 A test program using cmake with added profiling is provided inside the test/ folder.
+You can build the vitagprof lib + the test program with the following :
+```
+mkdir build
+cd build
+cmake ..
+make
+```
 
 Important points :
 - You must compile using the `-pg` flag in order to activate functions instrumentations (both with compiler CC and linker LD)
