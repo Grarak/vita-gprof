@@ -54,7 +54,6 @@ struct gmonparam
     unsigned int lowpc;
     unsigned int highpc;
     unsigned int textsize;
-    unsigned int hashfraction;
 
     int narcs;
     struct rawarc *arcs;
@@ -103,33 +102,38 @@ static void initialize()
 {
     initialized = 1;
 
+    sceClibPrintf("vitagprof: initializing\n");
+
     memset(&gp, '\0', sizeof(gp));
     gp.state = GMON_PROF_ON;
     gp.lowpc = (unsigned int)&__executable_start;
     gp.highpc = (unsigned int)&__etext;
     gp.textsize = gp.highpc - gp.lowpc;
-    gp.hashfraction = HISTFRACTION;
 
-    gp.narcs = (gp.textsize + gp.hashfraction - 1) / gp.hashfraction;
+    gp.narcs = (gp.textsize + HISTFRACTION - 1) / HISTFRACTION;
     gp.arcs = (struct rawarc *)malloc(sizeof(struct rawarc) * gp.narcs);
     if (gp.arcs == NULL)
     {
         gp.state = GMON_PROF_ERROR;
+        sceClibPrintf("vitagprof: error allocating %d bytes\n", sizeof(struct rawarc) * gp.narcs);
         return;
     }
 
-    gp.nsamples = (gp.textsize + gp.hashfraction - 1) / gp.hashfraction;
+    gp.nsamples = (gp.textsize + HISTFRACTION - 1) / HISTFRACTION;
     gp.samples = (unsigned int *)malloc(sizeof(unsigned int) * gp.nsamples);
     if (gp.samples == NULL)
     {
         free(gp.arcs);
         gp.arcs = 0;
         gp.state = GMON_PROF_ERROR;
+        sceClibPrintf("vitagprof: error allocating %d bytes\n", sizeof(unsigned int) * gp.nsamples);
         return;
     }
 
     memset((void *)gp.arcs, '\0', gp.narcs * (sizeof(struct rawarc)));
     memset((void *)gp.samples, '\0', gp.nsamples * (sizeof(unsigned int )));
+
+    sceClibPrintf("vitagprof: %d bytes allocated\n", sizeof(struct rawarc) * gp.narcs + sizeof(unsigned int) * gp.nsamples);
 
     int thid = 0;
     thid = sceKernelCreateThread("profilerThread", profiler_thread, 0x10000100, 0x10000, 0, 0, NULL);
@@ -173,7 +177,9 @@ void gprof_stop(const char* filename, int should_dump)
     // Disable profiling to end profiler_thread
     gp.state = GMON_PROF_OFF;
 
-    // Wait for end of thread, timeout is 1 second
+    sceClibPrintf("vitagprof: stopping\n");
+
+    // Wait for end of thread, timeout is 2 seconds
     int exitstatus = 0;
     SceUInt timeout = 2000000;
     int ret = sceKernelWaitThreadEnd(gp.thread_id, &exitstatus, &timeout);
@@ -185,6 +191,7 @@ void gprof_stop(const char* filename, int should_dump)
     sceKernelDeleteThread(gp.thread_id);
 
     if (should_dump) {
+        sceClibPrintf("vitagprof: dumping data to %s\n", filename);
         fp = fopen(filename, "wb");
         hdr.lpc = gp.lowpc;
         hdr.hpc = gp.highpc;
@@ -259,7 +266,7 @@ void _mcount_internal(unsigned int frompc, unsigned int selfpc)
     if (frompc >= gp.lowpc && frompc <= gp.highpc)
     {
         gp.pc = selfpc;
-        e = (frompc - gp.lowpc) / gp.hashfraction;
+        e = (frompc - gp.lowpc) / HISTFRACTION;
         arc = gp.arcs + e;
         arc->frompc = frompc;
         arc->selfpc = selfpc;
@@ -280,7 +287,7 @@ static int profiler_thread(SceSize args, void *argp)
         if (frompc >= gp.lowpc && frompc <= gp.highpc)
         {
             // Increment sample
-            int e = (frompc - gp.lowpc) / gp.hashfraction;
+            int e = (frompc - gp.lowpc) / HISTFRACTION;
             gp.samples[e]++;
         }
 
