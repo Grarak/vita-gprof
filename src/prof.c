@@ -214,14 +214,27 @@ void gprof_stop(const char* filename, int should_dump)
         hdr.resv[1] = 0;
         hdr.resv[2] = 0;
         fwrite(&hdr, 1, sizeof(hdr), fp);
-        unsigned int zero_value = 0;
 
+        unsigned int buffer[1024]; // Here to help write faster to file with 4k pages
+        memset(buffer, '\0', sizeof(unsigned int) * 1024);
+        int j = 0;
         for (i = 0; i < gp.ndata; i++) {
+            j = i % 1024;
+
             if (gp.datas_ptr[i]) {
-                fwrite(&gp.datas_ptr[i]->samples, sizeof(unsigned int), 1, fp);
-            } else {
-                fwrite(&zero_value, sizeof(unsigned int), 1, fp);
+                buffer[j] = gp.datas_ptr[i]->samples;
             }
+
+            if (j == 1023) {
+                // We have a full buffer
+                fwrite(buffer, sizeof(unsigned int), 1024, fp);
+                memset(buffer, '\0', sizeof(unsigned int) * 1024);
+            }
+        }
+
+        if (j < 1023 && i > 0) {
+            // We have remaining data in buffer
+            fwrite(buffer, sizeof(unsigned int), j + 1, fp);
         }
 
         for (i = 0; i < gp.ndata; i++)
