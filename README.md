@@ -49,11 +49,10 @@ Each sample counts as 0.001 seconds.
 ...
 ```
 
-
 ## License
 
+Licensed under the BSD license.
 See LICENSE file.
-
 
 ## Acknowledgement
 

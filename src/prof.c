@@ -28,6 +28,10 @@
 #include <psp2/kernel/clib.h>
 #include <psp2/kernel/processmgr.h>
 
+
+/// define sample frequency - 1000 hz = 1ms
+#define SAMPLE_FREQ     1000
+
 /** gmon.out file header */
 struct gmonhdr 
 {
@@ -47,6 +51,14 @@ struct rawarc
     long count;
 };
 
+// Contains an arc + number of samples
+// This is the main structure in memory
+struct rawdata
+{
+    struct rawarc arc;
+    unsigned int samples;
+};
+
 /** context */
 struct gmonparam 
 {
@@ -55,11 +67,8 @@ struct gmonparam
     unsigned int highpc;
     unsigned int textsize;
 
-    int narcs;
-    struct rawarc *arcs;
-
-    int nsamples;
-    unsigned int *samples;
+    int ndata;
+    struct rawdata **datas_ptr; // This is a list of pointers to rawdata elements
 
     int thread_id;
         
@@ -71,9 +80,6 @@ static struct gmonparam gp;
 
 /// one histogram per four bytes of text space
 #define	HISTFRACTION	4
-
-/// define sample frequency - 1000 hz = 1ms
-#define SAMPLE_FREQ     1000
 
 /// have we allocated memory and registered already
 static int initialized = 0;
@@ -89,6 +95,27 @@ __attribute__((__no_instrument_function__, __no_profile_instrument_function__))
 void _mcount_internal(unsigned int, unsigned int);
 __attribute__((__no_instrument_function__, __no_profile_instrument_function__))
 static int profiler_thread(SceSize args, void *argp);
+
+__attribute__((__no_instrument_function__, __no_profile_instrument_function__))
+void free_gprof()
+{
+    if (!gp.datas_ptr) {
+        return;
+    }
+
+    unsigned int total_ram_usage = sizeof(struct rawdata *) * gp.ndata;
+
+    for (int i = 0; i < gp.ndata; i++) {
+        if (gp.datas_ptr[i]) {
+            total_ram_usage += sizeof(struct rawdata);
+            free(gp.datas_ptr[i]);
+        }
+    }
+
+    free(gp.datas_ptr);
+    gp.datas_ptr = NULL;
+    sceClibPrintf("vitagprof: %d total bytes were allocated\n", total_ram_usage);
+}
 
 /** Initializes pg library
 
@@ -110,39 +137,24 @@ static void initialize()
     gp.highpc = (unsigned int)&__etext;
     gp.textsize = gp.highpc - gp.lowpc;
 
-    gp.narcs = (gp.textsize + HISTFRACTION - 1) / HISTFRACTION;
-    gp.arcs = (struct rawarc *)malloc(sizeof(struct rawarc) * gp.narcs);
-    if (gp.arcs == NULL)
+    gp.ndata = (gp.textsize + HISTFRACTION - 1) / HISTFRACTION;
+    gp.datas_ptr = (struct rawdata **)malloc(sizeof(struct rawdata *) * gp.ndata);
+    if (gp.datas_ptr == NULL)
     {
         gp.state = GMON_PROF_ERROR;
-        sceClibPrintf("vitagprof: error allocating %d bytes\n", sizeof(struct rawarc) * gp.narcs);
+        sceClibPrintf("vitagprof: error allocating %d bytes\n", sizeof(struct rawdata *) * gp.ndata);
         return;
     }
 
-    gp.nsamples = (gp.textsize + HISTFRACTION - 1) / HISTFRACTION;
-    gp.samples = (unsigned int *)malloc(sizeof(unsigned int) * gp.nsamples);
-    if (gp.samples == NULL)
-    {
-        free(gp.arcs);
-        gp.arcs = 0;
-        gp.state = GMON_PROF_ERROR;
-        sceClibPrintf("vitagprof: error allocating %d bytes\n", sizeof(unsigned int) * gp.nsamples);
-        return;
-    }
+    memset((void *)gp.datas_ptr, '\0', gp.ndata * (sizeof(struct rawdata *)));
 
-    memset((void *)gp.arcs, '\0', gp.narcs * (sizeof(struct rawarc)));
-    memset((void *)gp.samples, '\0', gp.nsamples * (sizeof(unsigned int )));
-
-    sceClibPrintf("vitagprof: %d bytes allocated\n", sizeof(struct rawarc) * gp.narcs + sizeof(unsigned int) * gp.nsamples);
+    sceClibPrintf("vitagprof: %d bytes allocated\n", sizeof(struct rawdata *) * gp.ndata);
 
     int thid = 0;
     thid = sceKernelCreateThread("profilerThread", profiler_thread, 0x10000100, 0x10000, 0, 0, NULL);
     if (thid < 0) {
         sceClibPrintf("vitagprof: sceKernelCreateThread failed with error code %i\n", thid);
-        free(gp.arcs);
-        free(gp.samples);
-        gp.arcs = 0;
-        gp.samples = 0;
+        free_gprof();
         gp.state = GMON_PROF_ERROR;
         return;
     }
@@ -195,30 +207,36 @@ void gprof_stop(const char* filename, int should_dump)
         fp = fopen(filename, "wb");
         hdr.lpc = gp.lowpc;
         hdr.hpc = gp.highpc;
-        hdr.ncnt = sizeof(hdr) + (sizeof(unsigned int) * gp.nsamples);
+        hdr.ncnt = sizeof(hdr) + (sizeof(unsigned int) * gp.ndata);
         hdr.version = GMONVERSION;
         hdr.profrate = SAMPLE_FREQ;
         hdr.resv[0] = 0;
         hdr.resv[1] = 0;
         hdr.resv[2] = 0;
         fwrite(&hdr, 1, sizeof(hdr), fp);
-        fwrite(gp.samples, gp.nsamples, sizeof(unsigned int), fp);
+        unsigned int zero_value = 0;
 
-        for (i=0; i<gp.narcs; i++)
+        for (i = 0; i < gp.ndata; i++) {
+            if (gp.datas_ptr[i]) {
+                fwrite(&gp.datas_ptr[i]->samples, sizeof(unsigned int), 1, fp);
+            } else {
+                fwrite(&zero_value, sizeof(unsigned int), 1, fp);
+            }
+        }
+
+        for (i = 0; i < gp.ndata; i++)
         {
-            if (gp.arcs[i].count > 0)
-            {
-                // sceClibPrintf("arc frompc %x selfpc %x count %d\n", gp.arcs[i].frompc, gp.arcs[i].selfpc, gp.arcs[i].count);
-                fwrite(gp.arcs + i, sizeof(struct rawarc), 1, fp);
+            if (gp.datas_ptr[i]) {
+                fwrite(&gp.datas_ptr[i]->arc, sizeof(struct rawarc), 1, fp);
             }
         }
 
         fclose(fp);
+        sceClibPrintf("vitagprof: dumping data done\n");
     }
 
-    // Free memory
-    free(gp.arcs);
-    free(gp.samples);
+    free_gprof();
+    sceClibPrintf("vitagprof: stopped\n");
 }
 
 /** Writes gmon.out dump file and stops profiling
@@ -245,7 +263,7 @@ __attribute__((__no_instrument_function__, __no_profile_instrument_function__))
 void _mcount_internal(unsigned int frompc, unsigned int selfpc)
 { 
     int e;
-    struct rawarc *arc;
+    struct rawdata *data;
 
     if (initialized == 0)
     {
@@ -267,10 +285,20 @@ void _mcount_internal(unsigned int frompc, unsigned int selfpc)
     {
         gp.pc = selfpc;
         e = (frompc - gp.lowpc) / HISTFRACTION;
-        arc = gp.arcs + e;
-        arc->frompc = frompc;
-        arc->selfpc = selfpc;
-        arc->count++;
+        data = gp.datas_ptr[e];
+        if (!data) {
+            // No data yet for this function, allocate data
+            data = malloc(sizeof(struct rawdata));
+            if (!data) {
+                // Not enough memory ?
+                return;
+            }
+            data->samples = 0;
+            gp.datas_ptr[e] = data;
+        }
+        data->arc.frompc = frompc;
+        data->arc.selfpc = selfpc;
+        data->arc.count++;
     }
 }
 
@@ -288,7 +316,19 @@ static int profiler_thread(SceSize args, void *argp)
         {
             // Increment sample
             int e = (frompc - gp.lowpc) / HISTFRACTION;
-            gp.samples[e]++;
+            struct rawdata *data = gp.datas_ptr[e];
+            if (!data) {
+                // No data yet for this function, allocate data
+                data = malloc(sizeof(struct rawdata));
+                if (!data) {
+                    // Not enough memory ?
+                    continue;
+                }
+                data->samples = 1;
+                gp.datas_ptr[e] = data;
+            } else {
+                data->samples++;
+            }
         }
 
         // Delay until next sample increment
