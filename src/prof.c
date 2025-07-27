@@ -239,7 +239,7 @@ void gprof_stop(const char* filename, int should_dump)
 
         for (i = 0; i < gp.ndata; i++)
         {
-            if (gp.datas_ptr[i]) {
+            if (gp.datas_ptr[i] && gp.datas_ptr[i]->arc.selfpc) {
                 fwrite(&gp.datas_ptr[i]->arc, sizeof(struct rawarc), 1, fp);
             }
         }
@@ -307,6 +307,7 @@ void _mcount_internal(unsigned int frompc, unsigned int selfpc)
                 return;
             }
             data->samples = 0;
+            data->arc.count = 0;
             gp.datas_ptr[e] = data;
         }
         data->arc.frompc = frompc;
@@ -338,6 +339,9 @@ static int profiler_thread(SceSize args, void *argp)
                     continue;
                 }
                 data->samples = 1;
+                data->arc.count = 0;
+                data->arc.frompc = 0;
+                data->arc.selfpc = 0;
                 gp.datas_ptr[e] = data;
             } else {
                 data->samples++;
