@@ -19,8 +19,15 @@ add_library(${PROJECT_NAME}
     src/mcount.s
 )
 
+set_target_properties(${PROJECT_NAME} PROPERTIES PUBLIC_HEADER src/vitagprof.h)
+
 target_link_libraries(${PROJECT_NAME}
   SceLibKernel_stub
+)
+
+install(TARGETS ${PROJECT_NAME}
+  LIBRARY DESTINATION $ENV{VITASDK}/arm-vita-eabi/lib/
+  PUBLIC_HEADER DESTINATION $ENV{VITASDK}/arm-vita-eabi/include/
 )
 
 add_subdirectory(test)
