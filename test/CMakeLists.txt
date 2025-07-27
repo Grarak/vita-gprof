@@ -12,12 +12,13 @@ project(test_profiler)
 include("${VITASDK}/share/vita.cmake" REQUIRED)
 
 set(VITA_APP_NAME "Profiler test")
-set(VITA_TITLEID  "GPROFTEST")
+set(VITA_TITLEID  "TESTGPROF")
 set(VITA_VERSION  "01.00")
 
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=gnu11 -pg")
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=gnu11 -pg") # Notice the -pg to enable profiling
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -pg")
 
+# This is not needed if you have installed vitagprof
 include_directories(
     ../src
 )
