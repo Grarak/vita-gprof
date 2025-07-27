@@ -12,11 +12,13 @@ unsigned int compute(unsigned int a, unsigned int b)
 {
     // Do something that takes time
     unsigned int result = a;
-    result *= b;
-    result >>= 5;
-    result %= 77777;
-    result <<= 7;
-    result /= 83;
+    for (int i = 0; i < 1000000; i++) {
+        result *= b;
+        result >>= 5;
+        result %= 77777;
+        result <<= 7;
+        result /= 83;
+    }
     return result;
 }
 
