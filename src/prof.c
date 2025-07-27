@@ -70,9 +70,8 @@ struct gmonparam
 /// holds context statistics
 static struct gmonparam gp;
 
-/// one histogram per two bytes of text space
-/// (instructions can be on two bytes instead of four due to Thumb mode)
-#define	HISTFRACTION	2
+/// one histogram per four bytes of text space
+#define	HISTFRACTION	4
 
 /// define sample frequency - 1000 hz = 1ms
 #define SAMPLE_FREQ     1000
@@ -252,15 +251,18 @@ void _mcount_internal(unsigned int frompc, unsigned int selfpc)
         return;
     }
 
+    // Don't ask me why but addresses are 0xB shifted from the elf adresses
+    frompc -= 0xB;
+    selfpc -= 0xB;
+
     /* call might come from stack */
     if (frompc >= gp.lowpc && frompc <= gp.highpc)
     {
         gp.pc = selfpc;
         e = (frompc - gp.lowpc) / gp.hashfraction;
         arc = gp.arcs + e;
-        // Don't ask me why but addresses are 0xB shifted from the elf adresses
-        arc->frompc = frompc - 0xB;
-        arc->selfpc = selfpc - 0xB;
+        arc->frompc = frompc;
+        arc->selfpc = selfpc;
         arc->count++;
     }
 }
