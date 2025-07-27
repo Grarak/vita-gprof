@@ -8,16 +8,31 @@
 #include <psp2/rtc.h>
 
 
+unsigned int compute2(unsigned int a, unsigned int b)
+{
+    // Do something that takes time
+    unsigned int result = a;
+    for (int i = 0; i < 1000; i++) {
+        result *= b;
+        result >>= 4;
+        result %= 75777;
+        result <<= 3;
+        result /= 9;
+    }
+    return result;
+}
+
 unsigned int compute(unsigned int a, unsigned int b)
 {
     // Do something that takes time
     unsigned int result = a;
-    for (int i = 0; i < 1000000; i++) {
+    for (int i = 0; i < 1000; i++) {
         result *= b;
         result >>= 5;
         result %= 77777;
         result <<= 7;
         result /= 83;
+        result = compute2(result, b);
     }
     return result;
 }
