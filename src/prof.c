@@ -55,8 +55,8 @@ struct rawarc
 // This is the main structure in memory
 struct rawdata
 {
-    struct rawarc arc;
     unsigned int samples;
+    struct rawarc arc;
 };
 
 /** context */
