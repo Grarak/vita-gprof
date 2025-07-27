@@ -133,7 +133,8 @@ static void initialize()
 
     memset(&gp, '\0', sizeof(gp));
     gp.state = GMON_PROF_ON;
-    gp.lowpc = (unsigned int)&__executable_start;
+    // __executable_start has 0xB more bytes than the address we are looking for to match elf
+    gp.lowpc = (unsigned int)&__executable_start - 0xB;
     gp.highpc = (unsigned int)&__etext;
     gp.textsize = gp.highpc - gp.lowpc;
 
@@ -288,10 +289,6 @@ void _mcount_internal(unsigned int frompc, unsigned int selfpc)
         /* returned off for some reason */
         return;
     }
-
-    // Don't ask me why but addresses are 0xB shifted from the elf adresses
-    frompc -= 0xB;
-    selfpc -= 0xB;
 
     /* call might come from stack */
     if (frompc >= gp.lowpc && frompc <= gp.highpc)
