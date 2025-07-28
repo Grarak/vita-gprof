@@ -22,8 +22,8 @@ add_library(${PROJECT_NAME}
 set_target_properties(${PROJECT_NAME} PROPERTIES PUBLIC_HEADER src/vitagprof.h)
 
 install(TARGETS ${PROJECT_NAME}
-  LIBRARY DESTINATION $ENV{VITASDK}/arm-vita-eabi/lib/
-  PUBLIC_HEADER DESTINATION $ENV{VITASDK}/arm-vita-eabi/include/
+  LIBRARY DESTINATION lib
+  PUBLIC_HEADER DESTINATION include
 )
 
 add_subdirectory(test EXCLUDE_FROM_ALL)
