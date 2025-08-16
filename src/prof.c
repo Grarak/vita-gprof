@@ -27,6 +27,7 @@
 #include <psp2common/types.h>
 #include <psp2/kernel/clib.h>
 #include <psp2/kernel/processmgr.h>
+#include <psp2/kernel/threadmgr/thread.h>
 
 
 /// define sample frequency - 1000 hz = 1ms
@@ -84,6 +85,8 @@ static struct gmonparam gp;
 /// have we allocated memory and registered already
 static int initialized = 0;
 
+int gprof_thread_id = -1;
+
 /// defined by linker
 extern int __executable_start;
 extern int __etext;
@@ -128,6 +131,8 @@ __attribute__((__no_instrument_function__, __no_profile_instrument_function__))
 static void initialize()
 {
     initialized = 1;
+
+    gprof_thread_id = sceKernelGetThreadId();
 
     sceClibPrintf("vitagprof: initializing\n");
 
@@ -281,7 +286,12 @@ void _mcount_internal(unsigned int frompc, unsigned int selfpc)
 
     if (initialized == 0)
     {
-        initialize();
+        return;
+    }
+
+    if (gprof_thread_id != sceKernelGetThreadId())
+    {
+        return;
     }
 
     if (gp.state != GMON_PROF_ON)

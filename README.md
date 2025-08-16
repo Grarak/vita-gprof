@@ -6,6 +6,19 @@ It is now time for optimizations !
 
 ## Usage
 
+### Rust
+- Add `-Zinstrument-mcount=yes` to `RUSTFLAGS`
+- In `build.rs` add
+    ```rust
+      println!("cargo:rustc-link-arg=-pg");
+      println!("cargo::rustc-env=CC=-pg");
+    ```
+- Disable ASLR in `Cargo.toml`
+    ```toml
+    [package.metadata.vita]
+    vita_make_fself_flags = ["-na"]
+    ```
+
 Note : use it at your own risk
 
 A test program using cmake with added profiling is provided inside the test/ folder.
